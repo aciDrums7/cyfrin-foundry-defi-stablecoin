@@ -4,7 +4,6 @@
         "tamasfe.even-better-toml",
         "yzhang.markdown-all-in-one",
         "ms-vscode.makefile-tools",
-        "nomicfoundation.hardhat-solidity",
-        "esbenp.prettier-vscode"
+        "nomicfoundation.hardhat-solidity"
     ]
 }

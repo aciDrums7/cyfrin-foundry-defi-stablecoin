@@ -3,8 +3,8 @@
 // Layout of Contract:
 // version
 // imports
-// errors
 // interfaces, libraries, contracts
+// errors
 // Type declarations
 // State variables
 // Events
@@ -24,6 +24,10 @@
 
 pragma solidity ^0.8.20;
 
+import {AcidStableCoin} from "./AcidStableCoin.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 /**
  * @title ACIDEngine
  * @author aciDrums7
@@ -41,10 +45,92 @@ pragma solidity ^0.8.20;
  * @notice This contract is the core of the ACID System. It handles all the logic for minting and redeeming ACID, as well as depositing and withdrawing collateral.
  * @notice This contract is VERY loosely based on the MakerDAO DSS (DAI) system.
  */
-contract ACIDEngine {
+contract ACIDEngine is ReentrancyGuard {
+    /////////////////////
+    // Errors          //
+    /////////////////////
+    error ACIDEngine__ZeroAmount();
+    error ACIDEngine__AllowedTokenContractsAndPriceFeedContractsMustBeSameLength();
+    error ACIDEngine__NotAllowedToken();
+    error ASCEngine__TransferFailed();
+
+    /////////////////////
+    // State Variables //
+    /////////////////////
+
+    mapping(address tokenContract => address priceFeedContract) private s_priceFeeds;
+    mapping(address user => mapping(address tokenContract => uint256 amount)) private s_collateralDeposited;
+
+    AcidStableCoin private immutable i_acid;
+
+    /////////////////////
+    // Events          //
+    /////////////////////
+    event CollateralDeposited(address indexed user, address indexed tokenContract, uint256 indexed amount);
+
+    /////////////////////
+    // Modifiers       //
+    /////////////////////
+
+    modifier moreThanZero(uint256 _amount) {
+        if (_amount <= 0) {
+            revert ACIDEngine__ZeroAmount();
+        }
+        _;
+    }
+
+    modifier isAllowedToken(address _tokenContract) {
+        if (s_priceFeeds[_tokenContract] == address(0)) {
+            revert ACIDEngine__NotAllowedToken();
+        }
+        _;
+    }
+
+    /////////////////////
+    //Functions        //
+    /////////////////////
+    constructor(
+        address[] memory _allowedTokenContractsList,
+        address[] memory _priceFeedContracts,
+        address _acidContract
+    ) {
+        //* USD Price Feeds
+        if (_allowedTokenContractsList.length != _priceFeedContracts.length) {
+            revert ACIDEngine__AllowedTokenContractsAndPriceFeedContractsMustBeSameLength();
+        }
+        //* For example, ETH / USD, BTC / USD...
+        for (uint256 i = 0; i < _allowedTokenContractsList.length; i++) {
+            s_priceFeeds[_allowedTokenContractsList[i]] = _priceFeedContracts[i];
+        }
+        i_acid = AcidStableCoin(_acidContract);
+    }
+
+    ////////////////////////
+    // External Functions //
+    ////////////////////////
+
     function depositCollateralAndMintAcid() external {}
 
-    function depositCollateral() external {}
+    /**
+     * @notice follows CEI
+     * @param _tokenContract The address of the token to deposit as collateral
+     * @param _collateralAmount The amount of collateral to deposit
+     */
+    function depositCollateral(address _tokenContract, uint256 _collateralAmount)
+        external
+        moreThanZero(_collateralAmount)
+        isAllowedToken(_tokenContract)
+        nonReentrant
+    //? https://docs.openzeppelin.com/contracts/4.x/api/security
+    //? https://solidity-by-example.org/hacks/re-entrancy/
+    {
+        s_collateralDeposited[msg.sender][_tokenContract] += _collateralAmount;
+        emit CollateralDeposited(msg.sender, _tokenContract, _collateralAmount);
+        bool success = IERC20(_tokenContract).transferFrom(msg.sender, address(this), _collateralAmount);
+        if (!success) {
+            revert ASCEngine__TransferFailed();
+        }
+    }
 
     function redeemCollateralForAcid() external {}
 
