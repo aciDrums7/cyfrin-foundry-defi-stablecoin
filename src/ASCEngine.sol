@@ -27,6 +27,7 @@ pragma solidity ^0.8.20;
 import {AcidStableCoin} from "./AcidStableCoin.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 /**
  * @title ACIDEngine
@@ -47,31 +48,34 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  */
 contract ACIDEngine is ReentrancyGuard {
     /////////////////////
-    // Errors          //
+    //* Errors         //
     /////////////////////
     error ACIDEngine__ZeroAmount();
     error ACIDEngine__AllowedTokenContractsAndPriceFeedContractsMustBeSameLength();
     error ACIDEngine__NotAllowedToken();
     error ASCEngine__TransferFailed();
 
-    /////////////////////
-    // State Variables //
-    /////////////////////
+    ////////////////////////
+    //* State Variables   //
+    ////////////////////////
+    uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
+    uint256 private constant DECIMAL_PRECISION = 1e18;
 
     mapping(address tokenContract => address priceFeedContract) private s_priceFeeds;
     mapping(address user => mapping(address tokenContract => uint256 amount)) private s_collateralDeposited;
+    mapping(address user => uint256 acidMintedAmount) private s_ACIDMinted;
+    address[] private s_collateralTokensContracts;
 
     AcidStableCoin private immutable i_acid;
 
     /////////////////////
-    // Events          //
+    //* Events         //
     /////////////////////
     event CollateralDeposited(address indexed user, address indexed tokenContract, uint256 indexed amount);
 
     /////////////////////
-    // Modifiers       //
+    //* Modifiers      //
     /////////////////////
-
     modifier moreThanZero(uint256 _amount) {
         if (_amount <= 0) {
             revert ACIDEngine__ZeroAmount();
@@ -87,28 +91,24 @@ contract ACIDEngine is ReentrancyGuard {
     }
 
     /////////////////////
-    //Functions        //
+    //* Functions      //
     /////////////////////
-    constructor(
-        address[] memory _allowedTokenContractsList,
-        address[] memory _priceFeedContracts,
-        address _acidContract
-    ) {
+    constructor(address[] memory _allowedTokenContracts, address[] memory _priceFeedContracts, address _acidContract) {
         //* USD Price Feeds
-        if (_allowedTokenContractsList.length != _priceFeedContracts.length) {
+        if (_allowedTokenContracts.length != _priceFeedContracts.length) {
             revert ACIDEngine__AllowedTokenContractsAndPriceFeedContractsMustBeSameLength();
         }
         //* For example, ETH / USD, BTC / USD...
-        for (uint256 i = 0; i < _allowedTokenContractsList.length; i++) {
-            s_priceFeeds[_allowedTokenContractsList[i]] = _priceFeedContracts[i];
+        for (uint256 i = 0; i < _allowedTokenContracts.length; i++) {
+            s_priceFeeds[_allowedTokenContracts[i]] = _priceFeedContracts[i];
+            s_collateralTokensContracts.push(_allowedTokenContracts[i]);
         }
         i_acid = AcidStableCoin(_acidContract);
     }
 
     ////////////////////////
-    // External Functions //
+    //* External Functions //
     ////////////////////////
-
     function depositCollateralAndMintAcid() external {}
 
     /**
@@ -136,7 +136,18 @@ contract ACIDEngine is ReentrancyGuard {
 
     function redeemCollateral() external {}
 
-    function mintAcid() external {}
+    //1. Check if the collateral value > ACID amount. Price feeds, etc...
+    //? $200 ETH -> $20 ACID
+    /**
+     * @notice follows CEI
+     * @param _acidToMintAmount the amount of ACID to mint
+     * @notice they must have more collateral value than the minimum threshold
+     */
+    function mintAcid(uint256 _acidToMintAmount) external moreThanZero(_acidToMintAmount) nonReentrant {
+        s_ACIDMinted[msg.sender] += _acidToMintAmount;
+        //* if they minted too much ($150 ACID, $100 ETH)
+        _revertIfHealthFactorIsBroken(msg.sender);
+    }
 
     function burnAcid() external {}
 
@@ -152,4 +163,55 @@ contract ACIDEngine is ReentrancyGuard {
     function liquidate() external {}
 
     function getHealthFactor() external view {}
+
+    ////////////////////////////////////////
+    //* Private & Internal View Functions //
+    ////////////////////////////////////////
+
+    function _getAccountInformation(address _user)
+        private
+        view
+        returns (uint256 totalAcidMinted, uint256 collateralValueInUsd)
+    {
+        totalAcidMinted = s_ACIDMinted[msg.sender];
+        collateralValueInUsd = getAccountCollateralValue(_user);
+    }
+    /**
+     *
+     * @param _user user to check liquidation risk
+     * Returns how close to liquidation a user is
+     * If a user goes below 1, then they can get liquidated
+     */
+
+    function _healthFactor(address _user) private view returns (uint256) {
+        // total ACID minted
+        // total collateral VALUE
+        (uint256 totalAcidMinted, uint256 collateralValueInUsd) = _getAccountInformation(_user);
+    }
+
+    function _revertIfHealthFactorIsBroken(address _user) internal view {
+        //? Check health factor (do they have enough collateral?)
+    }
+
+    ////////////////////////////////////////
+    //* Public & External View Functions  //
+    ////////////////////////////////////////
+    function getAccountCollateralValue(address _user) public view returns (uint256 totalCollateralValueInUsd) {
+        //1 loop through each collateral token, get the amount they have deposited, and map it to
+        //1 the price, to get the USD value
+        for (uint256 i = 0; i < s_collateralTokensContracts.length; i++) {
+            address tokenContract = s_collateralTokensContracts[i];
+            uint256 amountInToken = s_collateralDeposited[_user][tokenContract];
+            totalCollateralValueInUsd += getUsdValue(tokenContract, amountInToken);
+        }
+        return totalCollateralValueInUsd;
+    }
+
+    function getUsdValue(address _tokenContract, uint256 _amount) public view returns (uint256) {
+        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[_tokenContract]);
+        (, int256 price,,,) = priceFeed.latestRoundData();
+        // 1 ETH = $1000
+        // The returned value from CL will be 1000 * 1e8 (check on Chainlink Docs)
+        return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * _amount) / DECIMAL_PRECISION; // (n * 1e8 * 1e10) * (m * 1e18, because in WEI) / 1e18 = n*m*1e18;
+    }
 }
