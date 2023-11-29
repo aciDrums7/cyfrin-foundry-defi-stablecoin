@@ -5,7 +5,6 @@
         "yzhang.markdown-all-in-one",
         "ms-vscode.makefile-tools",
         "nomicfoundation.hardhat-solidity",
-        "esbenp.prettier-vscode",
-        "jock.svg"
+        "esbenp.prettier-vscode"
     ]
 }
