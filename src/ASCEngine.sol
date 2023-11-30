@@ -55,6 +55,7 @@ contract ASCEngine is ReentrancyGuard {
     error ASCEngine__NotAllowedToken();
     error ASCEngine__TransferFailed();
     error ASCEngine__BreaksHealthFactor(uint256 userHealthFactor);
+    error ASCEngine__MintFailed();
 
     ////////////////////////
     //* State Variables   //
@@ -151,6 +152,10 @@ contract ASCEngine is ReentrancyGuard {
         s_ACIDMinted[msg.sender] += _acidToMintAmount;
         //* if they minted too much ($150 ACID, $100 ETH)
         _revertIfHealthFactorIsBroken(msg.sender);
+        bool minted = i_acid.mint(msg.sender, _acidToMintAmount);
+        if (!minted) {
+            revert ASCEngine__MintFailed();
+        }
     }
 
     function burnAcid() external {}
