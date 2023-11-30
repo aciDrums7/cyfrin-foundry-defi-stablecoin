@@ -56,6 +56,7 @@ contract ASCEngine is ReentrancyGuard {
     error ASCEngine__TransferFailed();
     error ASCEngine__BreaksHealthFactor(uint256 userHealthFactor);
     error ASCEngine__MintFailed();
+    error ASCEngine__HealthFactorOk();
 
     ////////////////////////
     //* State Variables   //
@@ -64,7 +65,8 @@ contract ASCEngine is ReentrancyGuard {
     uint256 private constant DECIMAL_PRECISION = 1e18;
     uint256 private constant LIQUIDATION_THRESHOLD = 50; //! 200% overcollateralized
     uint256 private constant LIQUIDATION_PRECISION = 100;
-    uint256 private constant MIN_HEALTH_FACTOR = 1;
+    uint256 private constant MIN_HEALTH_FACTOR = 1e18;
+    uint256 private constant LIQUIDATION_BONUS = 10; // This means a 10% bonus
 
     mapping(address tokenContract => address priceFeedContract) private s_priceFeeds;
     mapping(address user => mapping(address tokenContract => uint256 amount)) private s_collateralDeposited;
@@ -143,16 +145,50 @@ contract ASCEngine is ReentrancyGuard {
         // redeemCollateral altready checks health factor
     }
 
-    //? Threshold to let's say 150%
-    //? $100 ETH Collateral -> $74 ETH
-    //? $50 ACID
-    //! UNDERCOLLATERALIZED!!! -> people can liquidate your position (paying $50 ACID, gaining 74$ ETH -> earning $24 in ETH!)
+    // If we do start nearing undercollateralization, we need someone to liquidate our positions
+    // $100 ETH backing $50 ACID
+    // $20 ETH back $50 ACID <- ACID isn't worth $1!!!
 
-    //! I'll pay back the $50 ACID -> Get all your collateral! ($74 ETH)
-    //* $74 ETH
-    //* -$50 ASC
-    //* $24 profit
-    function liquidate() external {}
+    // $75 backing $50 ACID
+    // Liquidator take $75 backing and burns off the $50 ACID -> Our protocol stays overcollateralized
+
+    // If someone is almost undercollateralized, we'll pay you to liquidate them!
+    /**
+     *
+     * @param _tokenContract The ERC20 collateral address to liquidate from the user
+     * @param _userToLiquidate The user who has broken the health factor. Their _healthFactor should be below MIN_HEALTH_FACTOR
+     * @param _debtToCover The amount of ACID you want to burn to improve the user health factor
+     * @notice You can partially liquidate a user.
+     * @notice You will get a liquidation bonus for taking the users funds
+     * @notice This function working assumes the protocol will be roughly 200% collateralized in order for this to work
+     * @notice A known bug would be if the protocol were 100% or less collateralized, then we wouldn't be able to incentive the liquidators.
+     * For example, if the price of the collateral plummeted before anyone could be liquidated.
+     *
+     * Follows CEI: Checks, Effects, Interactions
+     */
+    function liquidate(address _tokenContract, address _userToLiquidate, uint256 _debtToCover)
+        external
+        moreThanZero(_debtToCover)
+        nonReentrant
+    {
+        // Need to check health factor of the user
+        uint256 startingUserHealthFactor = _healthFactor(_userToLiquidate);
+        if (startingUserHealthFactor >= MIN_HEALTH_FACTOR) {
+            revert ASCEngine__HealthFactorOk();
+        }
+        // We want to burn their ACID "debt"
+        // And take their collateral
+        // Bad User: $140 ETH, $100 ACID
+        // debtToCover = $100
+        // $100 ACID = ??? ETH?
+        uint256 ethAmountFromDebtCovered = getTokenAmountFromUsd(_tokenContract, _debtToCover);
+        // And give them a 10% bonus
+        // So we are giving the liquidator $110 of WETH for $100 ACID
+        // We should implement a feature to liquidate in the event the protocol is insolvent
+        // And sweep extra amounts into a treasury
+        uint256 bonusCollateral = (ethAmountFromDebtCovered * LIQUIDATION_BONUS) / LIQUIDATION_PRECISION;
+        uint256 totalCollateralToRedeem = ethAmountFromDebtCovered + bonusCollateral;
+    }
 
     ////////////////////////
     //* Public  Functions //
@@ -284,5 +320,11 @@ contract ASCEngine is ReentrancyGuard {
 
     function getHealthFactor() external view returns (uint256) {
         return _healthFactor(msg.sender);
+    }
+
+    function getTokenAmountFromUsd(address _tokenContract, uint256 _usdAmountInWei) public view returns (uint256) {
+        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[_tokenContract]);
+        (, int256 price,,,) = priceFeed.latestRoundData();
+        return (_usdAmountInWei * DECIMAL_PRECISION) / (uint256(price) * ADDITIONAL_FEED_PRECISION);
     }
 }
