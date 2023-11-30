@@ -10,7 +10,7 @@ contract DeployASCEngine is Script {
     address[] public tokenAddresses;
     address[] public priceFeedAddresses;
 
-    function run() external returns (AcidStableCoin, ASCEngine) {
+    function run() external returns (AcidStableCoin, ASCEngine, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
         (
             address wEthUsdPriceFeed,
@@ -29,6 +29,6 @@ contract DeployASCEngine is Script {
 
         acid.transferOwnership(address(ascEngine));
         vm.stopBroadcast();
-        return (acid, ascEngine);
+        return (acid, ascEngine, helperConfig);
     }
 }

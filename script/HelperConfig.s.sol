@@ -17,8 +17,8 @@ contract HelperConfig is Script {
     }
 
     uint8 public constant DECIMALS = 8;
-    int256 public constant ETH_USD_PRICE = 2029e8;
-    int256 public constant BTC_USD_PRICE = 37667e8;
+    int256 public constant ETH_USD_PRICE = 2000e8;
+    int256 public constant BTC_USD_PRICE = 37000e8;
 
     NetworkConfig public activeNetworkConfig;
 

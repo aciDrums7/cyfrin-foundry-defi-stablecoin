@@ -50,7 +50,7 @@ contract ASCEngine is ReentrancyGuard {
     /////////////////////
     //* Errors         //
     /////////////////////
-    error ASCEngine__ZeroAmount();
+    error ASCEngine__NeedsMoreThanZero();
     error ASCEngine__AllowedTokenContractsAndPriceFeedContractsMustBeSameLength();
     error ASCEngine__NotAllowedToken();
     error ASCEngine__TransferFailed();
@@ -83,7 +83,7 @@ contract ASCEngine is ReentrancyGuard {
     /////////////////////
     modifier moreThanZero(uint256 _amount) {
         if (_amount <= 0) {
-            revert ASCEngine__ZeroAmount();
+            revert ASCEngine__NeedsMoreThanZero();
         }
         _;
     }
