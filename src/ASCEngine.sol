@@ -77,6 +77,7 @@ contract ASCEngine is ReentrancyGuard {
     //* Events         //
     /////////////////////
     event CollateralDeposited(address indexed user, address indexed tokenContract, uint256 indexed amount);
+    event CollateralRedeemed(address indexed user, address indexed tokenContract, uint256 indexed amount);
 
     /////////////////////
     //* Modifiers      //
@@ -111,10 +112,9 @@ contract ASCEngine is ReentrancyGuard {
         i_acid = AcidStableCoin(_acidContract);
     }
 
-    ////////////////////////
+    /////////////////////////
     //* External Functions //
-    ////////////////////////
-
+    /////////////////////////
     /**
      *
      * @param _tokenContract The address of the token to deposit as collateral
@@ -129,6 +129,34 @@ contract ASCEngine is ReentrancyGuard {
         mintAcid(_acidToMintAmount);
     }
 
+    /**
+     * @param _tokenContract The address of the token collateral
+     * @param _collateralAmount The amount of token collateral to redeem
+     * @param _amountAcidToBurn The amount of ACID to burn
+     * This function burns ACID and redeems underlying collateral in one transaction
+     */
+    function redeemCollateralForAcid(address _tokenContract, uint256 _collateralAmount, uint256 _amountAcidToBurn)
+        external
+    {
+        burnAcid(_amountAcidToBurn);
+        redeemCollateral(_tokenContract, _collateralAmount);
+        // redeemCollateral altready checks health factor
+    }
+
+    //? Threshold to let's say 150%
+    //? $100 ETH Collateral -> $74 ETH
+    //? $50 ACID
+    //! UNDERCOLLATERALIZED!!! -> people can liquidate your position (paying $50 ACID, gaining 74$ ETH -> earning $24 in ETH!)
+
+    //! I'll pay back the $50 ACID -> Get all your collateral! ($74 ETH)
+    //* $74 ETH
+    //* -$50 ASC
+    //* $24 profit
+    function liquidate() external {}
+
+    ////////////////////////
+    //* Public  Functions //
+    ////////////////////////
     /**
      * @notice follows CEI
      * @param _tokenContract The address of the token to deposit as collateral
@@ -150,9 +178,24 @@ contract ASCEngine is ReentrancyGuard {
         }
     }
 
-    function redeemCollateralForAcid() external {}
-
-    function redeemCollateral() external {}
+    // in order to redeem collateral:
+    //1. health factor must be over 1 AFTER collateral pulled
+    //! DRY: Don't Repeat Yourself
+    // CEI
+    function redeemCollateral(address _tokenContract, uint256 _collateralAmount)
+        public
+        moreThanZero(_collateralAmount)
+        nonReentrant
+    {
+        // 100 - 1000 -> revert by solc
+        s_collateralDeposited[msg.sender][_tokenContract] -= _collateralAmount;
+        emit CollateralRedeemed(msg.sender, _tokenContract, _collateralAmount);
+        bool success = IERC20(_tokenContract).transfer(msg.sender, _collateralAmount);
+        if (!success) {
+            revert ASCEngine__TransferFailed();
+        }
+        _revertIfHealthFactorIsBroken(msg.sender);
+    }
 
     //1. Check if the collateral value > ACID amount. We'll need Price feeds, etc...
     //? $200 ETH -> $20 ACID
@@ -171,25 +214,19 @@ contract ASCEngine is ReentrancyGuard {
         }
     }
 
-    function burnAcid() external {}
-
-    //? Threshold to let's say 150%
-    //? $100 ETH Collateral -> $74 ETH
-    //? $50 ACID
-    //! UNDERCOLLATERALIZED!!! -> people can liquidate your position (paying $50 ACID, gaining 74$ ETH -> earning $24 in ETH!)
-
-    //! I'll pay back the $50 ACID -> Get all your collateral! ($74 ETH)
-    //* $74 ETH
-    //* -$50 ASC
-    //* $24 profit
-    function liquidate() external {}
-
-    function getHealthFactor() external view {}
+    function burnAcid(uint256 _amount) public moreThanZero(_amount) {
+        s_ACIDMinted[msg.sender] -= _amount;
+        bool success = i_acid.transferFrom(msg.sender, address(this), _amount);
+        if (!success) {
+            revert ASCEngine__TransferFailed();
+        }
+        i_acid.burn(_amount);
+        _revertIfHealthFactorIsBroken(msg.sender); //! I don't think this would ever hit...
+    }
 
     ////////////////////////////////////////
     //* Private & Internal View Functions //
     ////////////////////////////////////////
-
     function _getAccountInformation(address _user)
         private
         view
@@ -243,5 +280,9 @@ contract ASCEngine is ReentrancyGuard {
         //? The returned value from priceFeed will be n * 1e8 (check on Chainlink Docs)
         //4 (n * 1e8 * 1e10) * (m * 1e18, because in WEI) / 1e18 = n*m*1e18;
         return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * _amount) / DECIMAL_PRECISION;
+    }
+
+    function getHealthFactor() external view returns (uint256) {
+        return _healthFactor(msg.sender);
     }
 }
