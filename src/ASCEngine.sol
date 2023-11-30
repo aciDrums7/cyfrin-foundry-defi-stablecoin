@@ -114,7 +114,20 @@ contract ASCEngine is ReentrancyGuard {
     ////////////////////////
     //* External Functions //
     ////////////////////////
-    function depositCollateralAndMintAcid() external {}
+
+    /**
+     *
+     * @param _tokenContract The address of the token to deposit as collateral
+     * @param _collateralAmount The amount of the collateral to deposit
+     * @param _acidToMintAmount The amount of ACID to mint
+     * @notice This function will deposit your collateral and mint your ACID in one transaction
+     */
+    function depositCollateralAndMintAcid(address _tokenContract, uint256 _collateralAmount, uint256 _acidToMintAmount)
+        external
+    {
+        depositCollateral(_tokenContract, _collateralAmount);
+        mintAcid(_acidToMintAmount);
+    }
 
     /**
      * @notice follows CEI
@@ -122,7 +135,7 @@ contract ASCEngine is ReentrancyGuard {
      * @param _collateralAmount The amount of collateral to deposit
      */
     function depositCollateral(address _tokenContract, uint256 _collateralAmount)
-        external
+        public
         moreThanZero(_collateralAmount)
         isAllowedToken(_tokenContract)
         //? https://docs.openzeppelin.com/contracts/4.x/api/security
@@ -148,7 +161,7 @@ contract ASCEngine is ReentrancyGuard {
      * @param _acidToMintAmount the amount of ACID to mint
      * @notice user must have more collateral value than the minimum threshold
      */
-    function mintAcid(uint256 _acidToMintAmount) external moreThanZero(_acidToMintAmount) nonReentrant {
+    function mintAcid(uint256 _acidToMintAmount) public moreThanZero(_acidToMintAmount) nonReentrant {
         s_ACIDMinted[msg.sender] += _acidToMintAmount;
         //* if they minted too much ($150 ACID, $100 ETH)
         _revertIfHealthFactorIsBroken(msg.sender);
