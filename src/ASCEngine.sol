@@ -57,6 +57,7 @@ contract ASCEngine is ReentrancyGuard {
     error ASCEngine__BreaksHealthFactor(uint256 userHealthFactor);
     error ASCEngine__MintFailed();
     error ASCEngine__HealthFactorOk();
+    error ASCEngine__HealthFactorNotImproved();
 
     ////////////////////////
     //* State Variables   //
@@ -79,7 +80,9 @@ contract ASCEngine is ReentrancyGuard {
     //* Events         //
     /////////////////////
     event CollateralDeposited(address indexed user, address indexed tokenContract, uint256 indexed amount);
-    event CollateralRedeemed(address indexed user, address indexed tokenContract, uint256 indexed amount);
+    event CollateralRedeemed(
+        address indexed redeemedFrom, address indexed redeemedTo, address indexed tokenContract, uint256 amount
+    );
 
     /////////////////////
     //* Modifiers      //
@@ -188,6 +191,13 @@ contract ASCEngine is ReentrancyGuard {
         // And sweep extra amounts into a treasury
         uint256 bonusCollateral = (ethAmountFromDebtCovered * LIQUIDATION_BONUS) / LIQUIDATION_PRECISION;
         uint256 totalCollateralToRedeem = ethAmountFromDebtCovered + bonusCollateral;
+        _redeemCollateral(_tokenContract, totalCollateralToRedeem, _userToLiquidate, msg.sender);
+        _burnAcid(_debtToCover, _userToLiquidate, msg.sender);
+
+        uint256 endingUserHealthFactor = _healthFactor(_userToLiquidate);
+        if (endingUserHealthFactor <= startingUserHealthFactor) {
+            revert ASCEngine__HealthFactorNotImproved();
+        }
     }
 
     ////////////////////////
@@ -212,6 +222,7 @@ contract ASCEngine is ReentrancyGuard {
         if (!success) {
             revert ASCEngine__TransferFailed();
         }
+        _revertIfHealthFactorIsBroken(msg.sender);
     }
 
     // in order to redeem collateral:
@@ -223,13 +234,7 @@ contract ASCEngine is ReentrancyGuard {
         moreThanZero(_collateralAmount)
         nonReentrant
     {
-        // 100 - 1000 -> revert by solc
-        s_collateralDeposited[msg.sender][_tokenContract] -= _collateralAmount;
-        emit CollateralRedeemed(msg.sender, _tokenContract, _collateralAmount);
-        bool success = IERC20(_tokenContract).transfer(msg.sender, _collateralAmount);
-        if (!success) {
-            revert ASCEngine__TransferFailed();
-        }
+        _redeemCollateral(_tokenContract, _collateralAmount, msg.sender, msg.sender);
         _revertIfHealthFactorIsBroken(msg.sender);
     }
 
@@ -251,12 +256,7 @@ contract ASCEngine is ReentrancyGuard {
     }
 
     function burnAcid(uint256 _amount) public moreThanZero(_amount) {
-        s_ACIDMinted[msg.sender] -= _amount;
-        bool success = i_acid.transferFrom(msg.sender, address(this), _amount);
-        if (!success) {
-            revert ASCEngine__TransferFailed();
-        }
-        i_acid.burn(_amount);
+        _burnAcid(_amount, msg.sender, msg.sender);
         _revertIfHealthFactorIsBroken(msg.sender); //! I don't think this would ever hit...
     }
 
@@ -294,6 +294,33 @@ contract ASCEngine is ReentrancyGuard {
         if (userHealthFactor < MIN_HEALTH_FACTOR) {
             revert ASCEngine__BreaksHealthFactor(userHealthFactor);
         }
+    }
+
+    function _redeemCollateral(address _tokenContract, uint256 _collateralAmount, address _from, address _to) private {
+        // 100 - 1000 -> revert by solc
+        s_collateralDeposited[_from][_tokenContract] -= _collateralAmount;
+        emit CollateralRedeemed(_from, _to, _tokenContract, _collateralAmount);
+        bool success = IERC20(_tokenContract).transfer(_to, _collateralAmount);
+        if (!success) {
+            revert ASCEngine__TransferFailed();
+        }
+    }
+
+    /**
+     *
+     * @param _acidToBurnAmount The amount of ACIDs to burn
+     * @param _onBehalfOf The address on behalf of burn ACIDs
+     * @param _acidFrom The address from which to transfer ACIDs
+     * @dev Low-level internal function, do not call unless the function calling it is checking for
+     * health factors being broken
+     */
+    function _burnAcid(uint256 _acidToBurnAmount, address _onBehalfOf, address _acidFrom) private {
+        s_ACIDMinted[_onBehalfOf] -= _acidToBurnAmount;
+        bool success = i_acid.transferFrom(_acidFrom, address(this), _acidToBurnAmount);
+        if (!success) {
+            revert ASCEngine__TransferFailed();
+        }
+        i_acid.burn(_acidToBurnAmount);
     }
 
     ////////////////////////////////////////
