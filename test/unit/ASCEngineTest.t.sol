@@ -17,10 +17,10 @@ contract ASCEngineTest is Test {
     AcidStableCoin acid;
     HelperConfig netConf;
 
-    address wEthUsdPriceFeed;
-    address wBtcUsdPriceFeed;
-    address wEthContract;
-    address wBtcContract;
+    address wethUsdPriceFeed;
+    address wbtcUsdPriceFeed;
+    address wethAddress;
+    address wbtcAddress;
 
     address public USER = makeAddr("USER");
     uint256 public constant AMOUNT_COLLATERAL = 10 ether;
@@ -29,9 +29,30 @@ contract ASCEngineTest is Test {
     function setUp() public {
         deployer = new DeployASCEngine();
         (acid, engine, netConf) = deployer.run();
-        (wEthUsdPriceFeed, wBtcUsdPriceFeed, wEthContract, wBtcContract,) = netConf.activeNetworkConfig();
+        (wethUsdPriceFeed, wbtcUsdPriceFeed, wethAddress, wbtcAddress,) = netConf.activeNetworkConfig();
 
-        ERC20Mock(wEthContract).mint(USER, STARTING_ERC20_BALANCE);
+        ERC20Mock(wethAddress).mint(USER, STARTING_ERC20_BALANCE);
+    }
+
+    modifier depositedCollateral() {
+        vm.startPrank(USER);
+        ERC20Mock(wethAddress).approve(address(engine), AMOUNT_COLLATERAL);
+        engine.depositCollateral(wethAddress, AMOUNT_COLLATERAL);
+        _;
+    }
+
+    ////////////////////////
+    //* Constructor Tests //
+    ////////////////////////
+    address[] public tokenAddresses;
+    address[] public priceFeedAddresses;
+
+    function test_RevertsIfTokenLengthDoesntMatchPriceFeeds() public {
+        tokenAddresses.push(wethAddress);
+        priceFeedAddresses.push(wethUsdPriceFeed);
+        priceFeedAddresses.push(wbtcUsdPriceFeed);
+        vm.expectRevert(ASCEngine.ASCEngine__AllowedTokenAddressesAndPriceFeedAddressesMustBeSameLength.selector);
+        new ASCEngine(tokenAddresses, priceFeedAddresses, address(acid));
     }
 
     /////////////////////
@@ -44,10 +65,17 @@ contract ASCEngineTest is Test {
 
         //2 Act
         uint256 expectedUsd = ethAmount * (uint256(netConf.ETH_USD_PRICE()) / PRICE_FEED_DECIMALS); // 21e18 * $2000 ETH = 4.2e22
-        uint256 actualUsd = engine.getUsdValue(wEthContract, ethAmount);
+        uint256 actualUsd = engine.getUsdValue(wethAddress, ethAmount);
 
         //3 Assert
-        assertEq(actualUsd, expectedUsd);
+        assertEq(expectedUsd, actualUsd);
+    }
+
+    function test_GetTokenAmountFromUsd() public {
+        uint256 usdAmount = 100 ether; // 100e18
+        uint256 expectedWeth = 0.05 ether; // 5e16
+        uint256 actualWeth = engine.getTokenAmountFromUsd(wethAddress, usdAmount);
+        assertEq(expectedWeth, actualWeth);
     }
 
     ////////////////////////////////
@@ -56,7 +84,24 @@ contract ASCEngineTest is Test {
     function test_RevertsIfCollateralZero() public {
         vm.startPrank(USER);
         vm.expectRevert(ASCEngine.ASCEngine__NeedsMoreThanZero.selector);
-        engine.depositCollateral(wEthContract, 0);
+        engine.depositCollateral(wethAddress, 0);
         vm.stopPrank();
+    }
+
+    function test_RevertsWithUnapprovedCollateral() public {
+        ERC20Mock ranToken = new ERC20Mock();
+        vm.startPrank(USER);
+        vm.expectRevert(ASCEngine.ASCEngine__NotAllowedToken.selector);
+        engine.depositCollateral(address(ranToken), AMOUNT_COLLATERAL);
+        vm.stopPrank();
+    }
+
+    function test_CanDepositCollateralAndGetAccountInfo() public depositedCollateral {
+        (uint256 totalAcidMinted, uint256 collateralValueInUsd) = engine.getAccountInformation(USER);
+
+        uint256 expectedTotalAcidMinted = 0;
+        uint256 expectedEthDepositAmount = engine.getTokenAmountFromUsd(wethAddress, collateralValueInUsd);
+        assertEq(expectedTotalAcidMinted, totalAcidMinted);
+        assertEq(AMOUNT_COLLATERAL, expectedEthDepositAmount);
     }
 }

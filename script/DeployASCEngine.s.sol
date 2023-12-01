@@ -13,15 +13,15 @@ contract DeployASCEngine is Script {
     function run() external returns (AcidStableCoin, ASCEngine, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
         (
-            address wEthUsdPriceFeed,
-            address wBtcUsdPriceFeed,
-            address wEthContract,
-            address wBtcContract,
+            address wethUsdPriceFeed,
+            address wbtcUsdPriceFeed,
+            address wethAddress,
+            address wbtcAddress,
             uint256 deployerKey
         ) = helperConfig.activeNetworkConfig();
 
-        tokenAddresses = [wEthContract, wBtcContract];
-        priceFeedAddresses = [wEthUsdPriceFeed, wBtcUsdPriceFeed];
+        tokenAddresses = [wethAddress, wbtcAddress];
+        priceFeedAddresses = [wethUsdPriceFeed, wbtcUsdPriceFeed];
 
         vm.startBroadcast(deployerKey);
         AcidStableCoin acid = new AcidStableCoin();

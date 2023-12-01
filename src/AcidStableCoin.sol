@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// Layout of Contract:
+// Layout of Address:
 // version
 // imports
 // errors
@@ -54,10 +54,7 @@ contract AcidStableCoin is ERC20Burnable, Ownable {
         super.burn(_amount);
     }
 
-    function mint(
-        address _to,
-        uint256 _amount
-    ) external onlyOwner returns (bool) {
+    function mint(address _to, uint256 _amount) external onlyOwner returns (bool) {
         if (_to == address(0)) {
             revert AcidStableCoin__NotZeroAddress();
         }

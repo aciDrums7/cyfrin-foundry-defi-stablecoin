@@ -9,10 +9,10 @@ import {ASCEngine} from "../src/ASCEngine.sol";
 
 contract HelperConfig is Script {
     struct NetworkConfig {
-        address wEthUsdPriceFeed;
-        address wBtcUsdPriceFeed;
-        address wEthContract;
-        address wBtcContract;
+        address wethUsdPriceFeed;
+        address wbtcUsdPriceFeed;
+        address wethAddress;
+        address wbtcAddress;
         uint256 deployerKey;
     }
 
@@ -32,30 +32,30 @@ contract HelperConfig is Script {
 
     function getSepoliaEthConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
-            wEthUsdPriceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
-            wBtcUsdPriceFeed: 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43,
-            wEthContract: 0x5f207d42F869fd1c71d7f0f81a2A67Fc20FF7323,
-            wBtcContract: 0x5928A372De475721231B4411a26a01602E0a6dFa,
+            wethUsdPriceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
+            wbtcUsdPriceFeed: 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43,
+            wethAddress: 0x5f207d42F869fd1c71d7f0f81a2A67Fc20FF7323,
+            wbtcAddress: 0x5928A372De475721231B4411a26a01602E0a6dFa,
             deployerKey: vm.envUint("SEPOLIA_PRIVATE_KEY")
         });
     }
 
     function getOrCreateAnvilEthConfig() public returns (NetworkConfig memory) {
-        if (activeNetworkConfig.wEthUsdPriceFeed != address(0)) {
+        if (activeNetworkConfig.wethUsdPriceFeed != address(0)) {
             return activeNetworkConfig;
         }
         vm.startBroadcast();
         MockV3Aggregator ethUsdPriceFeed = new MockV3Aggregator(DECIMALS, ETH_USD_PRICE);
-        ERC20Mock wEthMock = new ERC20Mock();
+        ERC20Mock wethMock = new ERC20Mock();
 
         MockV3Aggregator btcUsdPriceFeed = new MockV3Aggregator(DECIMALS, BTC_USD_PRICE);
-        ERC20Mock wBtcMock = new ERC20Mock();
+        ERC20Mock wbtcMock = new ERC20Mock();
         vm.stopBroadcast();
         return NetworkConfig({
-            wEthUsdPriceFeed: address(ethUsdPriceFeed),
-            wBtcUsdPriceFeed: address(btcUsdPriceFeed),
-            wEthContract: address(wEthMock),
-            wBtcContract: address(wBtcMock),
+            wethUsdPriceFeed: address(ethUsdPriceFeed),
+            wbtcUsdPriceFeed: address(btcUsdPriceFeed),
+            wethAddress: address(wethMock),
+            wbtcAddress: address(wbtcMock),
             deployerKey: vm.envUint("ANVIL_PRIVATE_KEY")
         });
     }

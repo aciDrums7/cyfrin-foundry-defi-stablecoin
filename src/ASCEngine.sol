@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-// Layout of Contract:
+// Layout of Address:
 // version
 // imports
 // interfaces, libraries, contracts
@@ -51,7 +51,7 @@ contract ASCEngine is ReentrancyGuard {
     //* Errors         //
     /////////////////////
     error ASCEngine__NeedsMoreThanZero();
-    error ASCEngine__AllowedTokenContractsAndPriceFeedContractsMustBeSameLength();
+    error ASCEngine__AllowedTokenAddressesAndPriceFeedAddressesMustBeSameLength();
     error ASCEngine__NotAllowedToken();
     error ASCEngine__TransferFailed();
     error ASCEngine__BreaksHealthFactor(uint256 userHealthFactor);
@@ -69,19 +69,19 @@ contract ASCEngine is ReentrancyGuard {
     uint256 private constant MIN_HEALTH_FACTOR = 1e18;
     uint256 private constant LIQUIDATION_BONUS = 10; // This means a 10% bonus
 
-    mapping(address tokenContract => address priceFeedContract) private s_priceFeeds;
-    mapping(address user => mapping(address tokenContract => uint256 amount)) private s_collateralDeposited;
+    mapping(address tokenAddress => address priceFeedAddress) private s_priceFeeds;
+    mapping(address user => mapping(address tokenAddress => uint256 amount)) private s_collateralDeposited;
     mapping(address user => uint256 acidMintedAmount) private s_ACIDMinted;
-    address[] private s_collateralTokensContracts;
+    address[] private s_collateralTokensAddresses;
 
     AcidStableCoin private immutable i_acid;
 
     /////////////////////
     //* Events         //
     /////////////////////
-    event CollateralDeposited(address indexed user, address indexed tokenContract, uint256 indexed amount);
+    event CollateralDeposited(address indexed user, address indexed tokenAddress, uint256 indexed amount);
     event CollateralRedeemed(
-        address indexed redeemedFrom, address indexed redeemedTo, address indexed tokenContract, uint256 amount
+        address indexed redeemedFrom, address indexed redeemedTo, address indexed tokenAddress, uint256 amount
     );
 
     /////////////////////
@@ -94,8 +94,8 @@ contract ASCEngine is ReentrancyGuard {
         _;
     }
 
-    modifier isAllowedToken(address _tokenContract) {
-        if (s_priceFeeds[_tokenContract] == address(0)) {
+    modifier isAllowedToken(address _tokenAddress) {
+        if (s_priceFeeds[_tokenAddress] == address(0)) {
             revert ASCEngine__NotAllowedToken();
         }
         _;
@@ -104,17 +104,17 @@ contract ASCEngine is ReentrancyGuard {
     /////////////////////
     //* Functions      //
     /////////////////////
-    constructor(address[] memory _allowedTokenContracts, address[] memory _priceFeedContracts, address _acidContract) {
+    constructor(address[] memory _allowedTokenAddresses, address[] memory _priceFeedAddresses, address _acidAddress) {
         //* USD Price Feeds
-        if (_allowedTokenContracts.length != _priceFeedContracts.length) {
-            revert ASCEngine__AllowedTokenContractsAndPriceFeedContractsMustBeSameLength();
+        if (_allowedTokenAddresses.length != _priceFeedAddresses.length) {
+            revert ASCEngine__AllowedTokenAddressesAndPriceFeedAddressesMustBeSameLength();
         }
         //* For example, ETH / USD, BTC / USD...
-        for (uint256 i = 0; i < _allowedTokenContracts.length; i++) {
-            s_priceFeeds[_allowedTokenContracts[i]] = _priceFeedContracts[i];
-            s_collateralTokensContracts.push(_allowedTokenContracts[i]);
+        for (uint256 i = 0; i < _allowedTokenAddresses.length; i++) {
+            s_priceFeeds[_allowedTokenAddresses[i]] = _priceFeedAddresses[i];
+            s_collateralTokensAddresses.push(_allowedTokenAddresses[i]);
         }
-        i_acid = AcidStableCoin(_acidContract);
+        i_acid = AcidStableCoin(_acidAddress);
     }
 
     /////////////////////////
@@ -122,29 +122,29 @@ contract ASCEngine is ReentrancyGuard {
     /////////////////////////
     /**
      *
-     * @param _tokenContract The address of the token to deposit as collateral
+     * @param _tokenAddress The address of the token to deposit as collateral
      * @param _collateralAmount The amount of the collateral to deposit
      * @param _acidToMintAmount The amount of ACID to mint
      * @notice This function will deposit your collateral and mint your ACID in one transaction
      */
-    function depositCollateralAndMintAcid(address _tokenContract, uint256 _collateralAmount, uint256 _acidToMintAmount)
+    function depositCollateralAndMintAcid(address _tokenAddress, uint256 _collateralAmount, uint256 _acidToMintAmount)
         external
     {
-        depositCollateral(_tokenContract, _collateralAmount);
+        depositCollateral(_tokenAddress, _collateralAmount);
         mintAcid(_acidToMintAmount);
     }
 
     /**
-     * @param _tokenContract The address of the token collateral
+     * @param _tokenAddress The address of the token collateral
      * @param _collateralAmount The amount of token collateral to redeem
      * @param _amountAcidToBurn The amount of ACID to burn
      * This function burns ACID and redeems underlying collateral in one transaction
      */
-    function redeemCollateralForAcid(address _tokenContract, uint256 _collateralAmount, uint256 _amountAcidToBurn)
+    function redeemCollateralForAcid(address _tokenAddress, uint256 _collateralAmount, uint256 _amountAcidToBurn)
         external
     {
         burnAcid(_amountAcidToBurn);
-        redeemCollateral(_tokenContract, _collateralAmount);
+        redeemCollateral(_tokenAddress, _collateralAmount);
         // redeemCollateral altready checks health factor
     }
 
@@ -158,7 +158,7 @@ contract ASCEngine is ReentrancyGuard {
     // If someone is almost undercollateralized, we'll pay you to liquidate them!
     /**
      *
-     * @param _tokenContract The ERC20 collateral address to liquidate from the user
+     * @param _tokenAddress The ERC20 collateral address to liquidate from the user
      * @param _userToLiquidate The user who has broken the health factor. Their _healthFactor should be below MIN_HEALTH_FACTOR
      * @param _debtToCover The amount of ACID you want to burn to improve the user health factor
      * @notice You can partially liquidate a user.
@@ -169,7 +169,7 @@ contract ASCEngine is ReentrancyGuard {
      *
      * Follows CEI: Checks, Effects, Interactions
      */
-    function liquidate(address _tokenContract, address _userToLiquidate, uint256 _debtToCover)
+    function liquidate(address _tokenAddress, address _userToLiquidate, uint256 _debtToCover)
         external
         moreThanZero(_debtToCover)
         nonReentrant
@@ -184,14 +184,14 @@ contract ASCEngine is ReentrancyGuard {
         // Bad User: $140 ETH, $100 ACID
         // debtToCover = $100
         // $100 ACID = ??? ETH?
-        uint256 ethAmountFromDebtCovered = getTokenAmountFromUsd(_tokenContract, _debtToCover);
+        uint256 ethAmountFromDebtCovered = getTokenAmountFromUsd(_tokenAddress, _debtToCover);
         // And give them a 10% bonus
         // So we are giving the liquidator $110 of WETH for $100 ACID
         // We should implement a feature to liquidate in the event the protocol is insolvent
         // And sweep extra amounts into a treasury
         uint256 bonusCollateral = (ethAmountFromDebtCovered * LIQUIDATION_BONUS) / LIQUIDATION_PRECISION;
         uint256 totalCollateralToRedeem = ethAmountFromDebtCovered + bonusCollateral;
-        _redeemCollateral(_tokenContract, totalCollateralToRedeem, _userToLiquidate, msg.sender);
+        _redeemCollateral(_tokenAddress, totalCollateralToRedeem, _userToLiquidate, msg.sender);
         _burnAcid(_debtToCover, _userToLiquidate, msg.sender);
 
         uint256 endingUserHealthFactor = _healthFactor(_userToLiquidate);
@@ -205,20 +205,20 @@ contract ASCEngine is ReentrancyGuard {
     ////////////////////////
     /**
      * @notice follows CEI
-     * @param _tokenContract The address of the token to deposit as collateral
+     * @param _tokenAddress The address of the token to deposit as collateral
      * @param _collateralAmount The amount of collateral to deposit
      */
-    function depositCollateral(address _tokenContract, uint256 _collateralAmount)
+    function depositCollateral(address _tokenAddress, uint256 _collateralAmount)
         public
         moreThanZero(_collateralAmount)
-        isAllowedToken(_tokenContract)
+        isAllowedToken(_tokenAddress)
         //? https://docs.openzeppelin.com/contracts/4.x/api/security
         //? https://solidity-by-example.org/hacks/re-entrancy/
         nonReentrant
     {
-        s_collateralDeposited[msg.sender][_tokenContract] += _collateralAmount;
-        emit CollateralDeposited(msg.sender, _tokenContract, _collateralAmount);
-        bool success = IERC20(_tokenContract).transferFrom(msg.sender, address(this), _collateralAmount);
+        s_collateralDeposited[msg.sender][_tokenAddress] += _collateralAmount;
+        emit CollateralDeposited(msg.sender, _tokenAddress, _collateralAmount);
+        bool success = IERC20(_tokenAddress).transferFrom(msg.sender, address(this), _collateralAmount);
         if (!success) {
             revert ASCEngine__TransferFailed();
         }
@@ -229,12 +229,12 @@ contract ASCEngine is ReentrancyGuard {
     //1. health factor must be over 1 AFTER collateral pulled
     //! DRY: Don't Repeat Yourself
     // CEI
-    function redeemCollateral(address _tokenContract, uint256 _collateralAmount)
+    function redeemCollateral(address _tokenAddress, uint256 _collateralAmount)
         public
         moreThanZero(_collateralAmount)
         nonReentrant
     {
-        _redeemCollateral(_tokenContract, _collateralAmount, msg.sender, msg.sender);
+        _redeemCollateral(_tokenAddress, _collateralAmount, msg.sender, msg.sender);
         _revertIfHealthFactorIsBroken(msg.sender);
     }
 
@@ -296,11 +296,11 @@ contract ASCEngine is ReentrancyGuard {
         }
     }
 
-    function _redeemCollateral(address _tokenContract, uint256 _collateralAmount, address _from, address _to) private {
+    function _redeemCollateral(address _tokenAddress, uint256 _collateralAmount, address _from, address _to) private {
         // 100 - 1000 -> revert by solc
-        s_collateralDeposited[_from][_tokenContract] -= _collateralAmount;
-        emit CollateralRedeemed(_from, _to, _tokenContract, _collateralAmount);
-        bool success = IERC20(_tokenContract).transfer(_to, _collateralAmount);
+        s_collateralDeposited[_from][_tokenAddress] -= _collateralAmount;
+        emit CollateralRedeemed(_from, _to, _tokenAddress, _collateralAmount);
+        bool success = IERC20(_tokenAddress).transfer(_to, _collateralAmount);
         if (!success) {
             revert ASCEngine__TransferFailed();
         }
@@ -329,16 +329,16 @@ contract ASCEngine is ReentrancyGuard {
     function getAccountCollateralValue(address _user) public view returns (uint256 totalCollateralValueInUsd) {
         //1 loop through each collateral token, get the amount they have deposited, and map it to
         //1 the price, to get the USD value
-        for (uint256 i = 0; i < s_collateralTokensContracts.length; i++) {
-            address tokenContract = s_collateralTokensContracts[i];
-            uint256 amountInToken = s_collateralDeposited[_user][tokenContract];
-            totalCollateralValueInUsd += getUsdValue(tokenContract, amountInToken); //? USD VALUE with 18 decimals
+        for (uint256 i = 0; i < s_collateralTokensAddresses.length; i++) {
+            address tokenAddress = s_collateralTokensAddresses[i];
+            uint256 amountInToken = s_collateralDeposited[_user][tokenAddress];
+            totalCollateralValueInUsd += getUsdValue(tokenAddress, amountInToken); //? USD VALUE with 18 decimals
         }
         return totalCollateralValueInUsd;
     }
 
-    function getUsdValue(address _tokenContract, uint256 _amount) public view returns (uint256) {
-        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[_tokenContract]);
+    function getUsdValue(address _tokenAddress, uint256 _amount) public view returns (uint256) {
+        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[_tokenAddress]);
         (, int256 price,,,) = priceFeed.latestRoundData(); //! 8 decimals
         //? The returned value from priceFeed will be n * 1e8 (check on Chainlink Docs)
         //4 (n * 1e8 * 1e10) * (m * 1e18, because in WEI) / 1e18 = n*m*1e18;
@@ -349,9 +349,13 @@ contract ASCEngine is ReentrancyGuard {
         return _healthFactor(msg.sender);
     }
 
-    function getTokenAmountFromUsd(address _tokenContract, uint256 _usdAmountInWei) public view returns (uint256) {
-        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[_tokenContract]);
+    function getTokenAmountFromUsd(address _tokenAddress, uint256 _usdAmountInWei) public view returns (uint256) {
+        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[_tokenAddress]);
         (, int256 price,,,) = priceFeed.latestRoundData();
         return (_usdAmountInWei * DECIMAL_PRECISION) / (uint256(price) * ADDITIONAL_FEED_PRECISION);
+    }
+
+    function getAccountInformation(address _user) external view returns (uint256, uint256) {
+        return _getAccountInformation(_user);
     }
 }
