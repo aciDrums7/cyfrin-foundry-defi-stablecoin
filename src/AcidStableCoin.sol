@@ -39,7 +39,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 contract AcidStableCoin is ERC20Burnable, Ownable {
     error AcidStableCoin__MustBeMoreThanZero();
     error AcidStableCoin__BurnAmountExceedsBalance();
-    error AcidStableCoin__NotZeroAddress();
+    error AcidStableCoin__ZeroAddressNotAllowed();
 
     constructor() ERC20("AcidStableCoin", "ACID") Ownable(msg.sender) {}
 
@@ -56,7 +56,7 @@ contract AcidStableCoin is ERC20Burnable, Ownable {
 
     function mint(address _to, uint256 _amount) external onlyOwner returns (bool) {
         if (_to == address(0)) {
-            revert AcidStableCoin__NotZeroAddress();
+            revert AcidStableCoin__ZeroAddressNotAllowed();
         }
         if (_amount <= 0) {
             revert AcidStableCoin__MustBeMoreThanZero();
