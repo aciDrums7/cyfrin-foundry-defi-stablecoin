@@ -404,4 +404,8 @@ contract ASCEngine is ReentrancyGuard {
     function getAcidMinted(address _user) external view returns (uint256) {
         return s_ACIDMinted[_user];
     }
+
+    function getCollateralTokensAddresses() external view returns (address[] memory) {
+        return s_collateralTokensAddresses;
+    }
 }

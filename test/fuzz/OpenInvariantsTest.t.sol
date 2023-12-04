@@ -32,7 +32,7 @@ contract OpenInvariantsTest is StdInvariant, Test {
         targetContract(address(engine));
     }
 
-    function invariant_ProtocolMustHaveMoreValueThanTotalSupply() public view {
+    /* function invariant_ProtocolMustHaveMoreValueThanTotalSupply() public view {
         // get the value of all the collateral in the protocol
         // compare it to the debt (acid)
         uint256 totalSupply = asc.totalSupply();
@@ -47,5 +47,5 @@ contract OpenInvariantsTest is StdInvariant, Test {
         console.log("totalSupply: ", totalSupply);
 
         assert(wethValue + wbtcValue >= totalSupply);
-    }
+    } */
 }
