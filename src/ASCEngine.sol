@@ -289,7 +289,7 @@ contract ASCEngine is ReentrancyGuard {
 
     function _healthFactor(address _user) private view returns (uint256) {
         (uint256 totalAcidMinted, uint256 collateralValueInUsd) = _getAccountInformation(_user);
-        if (totalAcidMinted == 0 || (totalAcidMinted == 0 && collateralValueInUsd == 0)) return type(uint256).max;
+        if (totalAcidMinted == 0) return type(uint256).max;
         uint256 collateralAdjustedForTreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION; //? we need to be 200% collateralized
 
         //5 ($1000 ETH * 50) / 100 = $500
