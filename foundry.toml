@@ -10,6 +10,7 @@ remappings = [
 [invariant]
 runs = 128
 depth = 128
+#4 why fail_on_revert = false? Because if you want to test if something is reverting in every possibile fuzz (invariant) test!
 fail_on_revert = true
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-optionsruns = 128
