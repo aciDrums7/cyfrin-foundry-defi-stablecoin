@@ -108,7 +108,7 @@ contract ASCEngineTest is Test {
         for (uint256 i = 0; i < testEngine.getCollateralTokenAddressLength(); i++) {
             address collateralTokenAddress = testEngine.getCollateralTokenAddress(i);
             assertEq(tokenAddresses[i], collateralTokenAddress);
-            assertEq(priceFeedAddresses[i], testEngine.getPriceFeedAddress(collateralTokenAddress));
+            assertEq(priceFeedAddresses[i], testEngine.getCollateralPriceFeed(collateralTokenAddress));
         }
         assertEq(address(asc), testEngine.getAcidAddress());
     }

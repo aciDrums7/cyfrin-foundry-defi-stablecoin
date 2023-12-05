@@ -377,7 +377,7 @@ contract ASCEngine is ReentrancyGuard {
         return _getAccountInformation(_user);
     }
 
-    function getPriceFeedAddress(address _tokenAddress) external view returns (address) {
+    function getCollateralPriceFeed(address _tokenAddress) external view returns (address) {
         return s_priceFeeds[_tokenAddress];
     }
 

@@ -7,6 +7,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {ASCEngine} from "../../src/ASCEngine.sol";
 import {AcidStableCoin} from "../../src/AcidStableCoin.sol";
+import {MockV3Aggregator} from "../mocks/MockV3Aggregator.sol";
 
 contract Handler is Test {
     uint256 MAX_DEPOSIT_SIZE = type(uint96).max;
@@ -19,6 +20,7 @@ contract Handler is Test {
 
     uint256 public timesMintIsCalled;
     address[] public usersWithCollateralDeposited;
+    MockV3Aggregator public ethUsdPriceFeed;
 
     constructor(ASCEngine _engine, AcidStableCoin _asc) {
         engine = _engine;
@@ -27,6 +29,8 @@ contract Handler is Test {
         address[] memory collateralTokens = engine.getCollateralTokensAddresses();
         weth = ERC20Mock(collateralTokens[0]);
         wbtc = ERC20Mock(collateralTokens[1]);
+
+        ethUsdPriceFeed = MockV3Aggregator(engine.getCollateralPriceFeed(address(weth)));
     }
 
     //* depositCollateral <-
@@ -80,6 +84,13 @@ contract Handler is Test {
         timesMintIsCalled++;
     }
 
+    //! THIS BREAKS OUR INVARIANT TEST SUITE!
+    //? It's a known bug, if the price of the collateral drops enormously, then the system brokes badly
+    /* function updateCollateralPrice(uint96 _newPrice) public {
+        int256 newPriceInt = int256(uint256(_newPrice));
+        ethUsdPriceFeed.updateAnswer(newPriceInt);
+    } */
+
     //* Helper functions
     function _getCollateralFromSeed(uint256 _collateralSeed) private view returns (ERC20Mock) {
         if (_collateralSeed % 2 == 0) {
@@ -87,9 +98,5 @@ contract Handler is Test {
         } else {
             return wbtc;
         }
-    }
-
-    function getCollateralFromSeed(uint256 _collateralSeed) public view returns (address) {
-        return address(_getCollateralFromSeed(_collateralSeed));
     }
 }
