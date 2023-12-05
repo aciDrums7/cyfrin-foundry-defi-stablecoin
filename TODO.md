@@ -15,4 +15,4 @@
    1. What are our invariants/properties?
    2. Some proper oracle use 
    3. Write more tests
-   4. Smart Contract Audit Preparation
+   4. Smart Contract Audit Preparation: https://github.com/nascentxyz/simple-security-toolkit/blob/main/audit-readiness-checklist.md
