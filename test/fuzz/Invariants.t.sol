@@ -40,6 +40,27 @@ contract Invariants is StdInvariant, Test {
         uint256 wethValue = engine.getUsdValue(weth, totalWethDeposited);
         uint256 wbtcValue = engine.getUsdValue(wbtc, totalWbtcDeposited);
 
+        console.log("weth value:", wethValue);
+        console.log("wbtc value:", wbtcValue);
+        console.log("total supply:", totalSupply);
+        console.log("Times mint called:", handler.timesMintIsCalled());
+
         assert(wethValue + wbtcValue >= totalSupply);
+    }
+
+    //* EVERGREEN INVARIANT
+    function invariant_GettersShouldNotRevert() public view {
+        engine.getAccountInformation(msg.sender);
+        engine.getAccountTotalCollateralValue(msg.sender);
+        engine.getAcidAddress();
+        engine.getAcidMinted(msg.sender);
+        engine.getCollateralTokenAddressLength();
+        engine.getCollateralTokensAddresses();
+        engine.getHealthFactor(msg.sender);
+        // engine.getCollateralDepositedByUserAndTokenAddress(msg.sender, collateral);
+        //   "getCollateralTokenAddress(uint256)": "4aee985b",
+        //   "getPriceFeedAddress(address)": "b21eb1e6",
+        //   "getTokenAmountFromUsd(address,uint256)": "afea2e48",
+        //   "getUsdValue(address,uint256)": "c660d112",
     }
 }
