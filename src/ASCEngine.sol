@@ -28,7 +28,7 @@ import {AcidStableCoin} from "./AcidStableCoin.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import {console} from "forge-std/console.sol";
+import {OracleLib} from "./libraries/OracleLib.sol";
 
 /**
  * @title ACIDEngine
@@ -60,6 +60,11 @@ contract ASCEngine is ReentrancyGuard {
     error ASCEngine__HealthFactorOk();
     error ASCEngine__HealthFactorNotImproved();
     error ASCEngine__AmountMoreThanBalance(uint256 balance, uint256 amount);
+
+    /////////////
+    //* Types  //
+    /////////////
+    using OracleLib for AggregatorV3Interface;
 
     ////////////////////////
     //* State Variables   //
@@ -357,7 +362,7 @@ contract ASCEngine is ReentrancyGuard {
 
     function getUsdValue(address _tokenAddress, uint256 _amount) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[_tokenAddress]);
-        (, int256 price,,,) = priceFeed.latestRoundData(); //! 8 decimals
+        (, int256 price,,,) = priceFeed.staleCheckLatestRoundData(); //! 8 decimals
         //? The returned value from priceFeed will be n * 1e8 (check on Chainlink Docs)
         //4 (n * 1e8 * 1e10) * (m * 1e18, because in WEI) / 1e18 = n*m*1e18;
         return ((uint256(price) * ADDITIONAL_FEED_PRECISION) * _amount) / DECIMAL_PRECISION;
@@ -369,7 +374,7 @@ contract ASCEngine is ReentrancyGuard {
 
     function getTokenAmountFromUsd(address _tokenAddress, uint256 _usdAmountInWei) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[_tokenAddress]);
-        (, int256 price,,,) = priceFeed.latestRoundData();
+        (, int256 price,,,) = priceFeed.staleCheckLatestRoundData();
         return (_usdAmountInWei * DECIMAL_PRECISION) / (uint256(price) * ADDITIONAL_FEED_PRECISION);
     }
 
