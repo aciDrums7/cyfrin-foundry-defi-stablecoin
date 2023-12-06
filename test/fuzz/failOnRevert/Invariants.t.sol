@@ -6,10 +6,10 @@ import {Test, console} from "forge-std/Test.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Handler} from "./Handler.t.sol";
-import {DeployASCEngine} from "../../script/DeployASCEngine.s.sol";
-import {HelperConfig} from "../../script/HelperConfig.s.sol";
-import {AcidStableCoin} from "../../src/AcidStableCoin.sol";
-import {ASCEngine} from "../../src/ASCEngine.sol";
+import {DeployASCEngine} from "../../../script/DeployASCEngine.s.sol";
+import {HelperConfig} from "../../../script/HelperConfig.s.sol";
+import {AcidStableCoin} from "../../../src/AcidStableCoin.sol";
+import {ASCEngine} from "../../../src/ASCEngine.sol";
 
 contract Invariants is StdInvariant, Test {
     DeployASCEngine deployer;

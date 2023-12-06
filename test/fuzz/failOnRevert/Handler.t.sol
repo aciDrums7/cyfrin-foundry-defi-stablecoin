@@ -5,9 +5,9 @@ pragma solidity ^0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
-import {ASCEngine} from "../../src/ASCEngine.sol";
-import {AcidStableCoin} from "../../src/AcidStableCoin.sol";
-import {MockV3Aggregator} from "../mocks/MockV3Aggregator.sol";
+import {ASCEngine} from "../../../src/ASCEngine.sol";
+import {AcidStableCoin} from "../../../src/AcidStableCoin.sol";
+import {MockV3Aggregator} from "../../mocks/MockV3Aggregator.sol";
 
 contract Handler is Test {
     uint256 MAX_DEPOSIT_SIZE = type(uint96).max;

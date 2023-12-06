@@ -11,10 +11,10 @@ pragma solidity ^0.8.20;
 
 import {Test, console} from "forge-std/Test.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
-import {DeployASCEngine} from "../../script/DeployASCEngine.s.sol";
-import {HelperConfig} from "../../script/HelperConfig.s.sol";
-import {AcidStableCoin} from "../../src/AcidStableCoin.sol";
-import {ASCEngine} from "../../src/ASCEngine.sol";
+import {DeployASCEngine} from "../../../script/DeployASCEngine.s.sol";
+import {HelperConfig} from "../../../script/HelperConfig.s.sol";
+import {AcidStableCoin} from "../../../src/AcidStableCoin.sol";
+import {ASCEngine} from "../../../src/ASCEngine.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract OpenInvariantsTest is StdInvariant, Test {

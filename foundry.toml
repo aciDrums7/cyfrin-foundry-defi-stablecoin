@@ -7,6 +7,10 @@ remappings = [
     "@chainlink/contracts=lib/chainlink-brownie-contracts/contracts",
 ]
 
+[fuzz]
+# runs = 10000
+runs = 128
+
 [invariant]
 runs = 128
 depth = 128
